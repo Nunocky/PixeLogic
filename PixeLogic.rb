@@ -32,6 +32,8 @@ class PixeLogic
   attr_reader   :candidates_v
   attr_reader   :candidates_h
 
+  attr_reader   :loop_count
+
   def initialize(data)
     @width  = data[:width]
     @height = data[:height]
@@ -40,6 +42,9 @@ class PixeLogic
 
     @candidates_h = []
     @candidates_v = []
+
+    @hint_total = 0
+    @field_total = 0
 
     # フィールド情報
     @field = {}
@@ -55,13 +60,21 @@ class PixeLogic
     if data[:dot]
       data[:dot].each do |pt|
         @field[pt] = 1
+        @field_total += 1
       end
     end
 
     # ヒントから候補を作成
     if @hint_h
+
       @hint_h.each do |hint|
         @candidates_h << PixeLogic.getCandidates(@width, hint)
+      end
+
+      @hint_h.each do |hint|
+        hint.each do |v|
+          @hint_total += v
+        end
       end
     end
 
@@ -148,6 +161,7 @@ class PixeLogic
         end
 
         @field[Point.new(x,y)] = p
+        @field_total += p
       end
 
     else
@@ -177,6 +191,7 @@ class PixeLogic
         end
 
           @field[Point.new(x,y)] = p
+          @field_total += 1
         end
       end
     end
@@ -192,28 +207,18 @@ class PixeLogic
     scan_line("h", n)
   end
 
-  def show
-#    print "\n"
-    @height.times do |y|
-      @width.times do |x|
-        if @field[Point.new(x,y)] == 0
-#          print "x"
-          print "✕"
-        elsif @field[Point.new(x,y)] == 1
-#          print "O"
-          print "■"
+  def show_step
+  end
 
-        else
-#          print "_"
-          print "  "
-        end
-      end
-      print "\n"
-    end
+  def show
+  end
+
+  def solve_completed?
+    return @hint_total == @field_total
   end
 
   def solve
-    loop_count = 0
+    @loop_count = 0
     while 0 < @scan_stack.length
       ary = @scan_stack.pop
       break until ary
@@ -221,13 +226,11 @@ class PixeLogic
       n   = ary[1]
       updated = scan_line(dir, n)
 
-      puts "\n#{loop_count}:"
-      show
-      loop_count += 1
-    end
+      show_step
+      @loop_count += 1
 
-    # TODO 解決できた・できなかったかの判定
-    # (ヒントで示されるドットの個数) ==  (@fieldで確定したドットの個数)
+      break if solve_completed?
+    end
   end
 
   #
@@ -362,6 +365,7 @@ end
 
 
 if __FILE__ == $0
+
   class PointTest < Test::Unit::TestCase
     def testInit0
       p0 = Point.new
@@ -382,7 +386,19 @@ if __FILE__ == $0
       assert_equal(p0, p1)
       assert_not_equal(p0, p2)
     end
-  end
+
+    def testHash
+      h = {}
+      a = Point.new(0,0)
+      b = Point.new(0,0)
+      c = Point.new(0,0)
+
+      h[a] = 0
+      h[b] = 0
+      assert_equal(true,  h[a] == h[b])
+#      assert_not_equal(h[a], h[c])
+    end
+end
 
   class PixeLogicTest < Test::Unit::TestCase
     def testInit0
@@ -395,6 +411,7 @@ if __FILE__ == $0
     end
 
     def testGetCandidates
+      # TODO 解の比較
 
       candidates = PixeLogic.getCandidates(5, [1,2])
       assert_equal(3, candidates.count)
@@ -519,7 +536,6 @@ if __FILE__ == $0
 
       line = logic.getLine("h", 2)
       assert_equal([nil,nil,nil,1,nil], line)
-
     end
 
     def testSolve5x5
@@ -530,8 +546,8 @@ if __FILE__ == $0
                             })
 
       logic.solve
-      puts ""
-      logic.show
+      puts logic.loop_count
+      # TODO 解の比較
     end
 
     def testSolve10x10
@@ -564,8 +580,8 @@ if __FILE__ == $0
                               ]
                             })
       logic.solve
-      puts ""
-      logic.show
+      puts logic.loop_count
+      # TODO 解の比較
     end
 
     def testSolve15x15
@@ -606,8 +622,8 @@ if __FILE__ == $0
                             })
 
       logic.solve
-      puts ""
-      logic.show
+      puts logic.loop_count
+      # TODO 解の比較
     end
 
   end
