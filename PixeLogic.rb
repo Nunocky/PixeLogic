@@ -239,7 +239,11 @@ class PixeLogic
   def self.getCandidates(width, pix)
     candidates = []
 
-    return [] if width == 0 || pix == nil || pix.length == 0
+    return [] if width == 0 || pix == nil
+
+    if pix.length == 0 || (pix.length==1 && pix[0] == 0)
+      return [ Array.new(width, 0) ]
+    end
 
     # width = 5, ary = [1]に対して、以下の配列を返す
     # [[1,0,0,0,0],
@@ -387,17 +391,17 @@ if __FILE__ == $0
       assert_not_equal(p0, p2)
     end
 
-    def testHash
-      h = {}
-      a = Point.new(0,0)
-      b = Point.new(0,0)
-      c = Point.new(0,0)
-
-      h[a] = 0
-      h[b] = 0
-      assert_equal(true,  h[a] == h[b])
-#      assert_not_equal(h[a], h[c])
-    end
+#    def testHash
+#      h = {}
+#      a = Point.new(0,0)
+#      b = Point.new(0,0)
+#      c = Point.new(0,0)
+#
+#      h[a] = 0
+#      h[b] = 0
+#      assert_equal(true,  h[a] == h[b])
+##      assert_not_equal(h[a], h[c])
+#    end
 end
 
   class PixeLogicTest < Test::Unit::TestCase
@@ -411,50 +415,40 @@ end
     end
 
     def testGetCandidates
-      # TODO 解の比較
-
       candidates = PixeLogic.getCandidates(5, [1,2])
-      assert_equal(3, candidates.count)
-      # [1,0,1,1,0]
-      # [1,0,0,1,1]
-      # [0,1,0,1,1]
+      assert_equal([ [1,0,1,1,0],
+                     [1,0,0,1,1],
+                     [0,1,0,1,1] ], candidates)
 
       candidates = PixeLogic.getCandidates(5, [1])
-      assert_equal(5, candidates.count)
-      # [1,0,0,0,0]
-      # [0,1,0,0,0]
-      # [0,0,1,0,0]
-      # [0,0,0,1,0]
-      # [0,0,0,0,1]
+      assert_equal([ [1,0,0,0,0],
+                     [0,1,0,0,0],
+                     [0,0,1,0,0],
+                     [0,0,0,1,0],
+                     [0,0,0,0,1]], candidates)
 
       candidates = PixeLogic.getCandidates(5, [1,1])
-      assert_equal(6, candidates.count)
-      # [1,0,1,0,0]
-      # [1,0,0,1,0]
-      # [0,1,0,1,0]
-      # [0,1,0,1,0]
-      # [0,1,0,0,1]
-      # [0,0,1,0,1]
+      assert_equal([ [1,0,1,0,0],
+                     [1,0,0,1,0],
+                     [1,0,0,0,1],
+                     [0,1,0,1,0],
+                     [0,1,0,0,1],
+                     [0,0,1,0,1]], candidates)
 
       candidates = PixeLogic.getCandidates(5, [3])
-      assert_equal(3, candidates.count)
-      # [1,1,1,0,0]
-      # [0,1,1,1,0]
-      # [0,0,1,1,1]
+      assert_equal([ [1,1,1,0,0],
+                     [0,1,1,1,0],
+                     [0,0,1,1,1] ], candidates)
 
       candidates = PixeLogic.getCandidates(5, [1,3])
-      assert_equal(1, candidates.count)
-      # [1,0,1,1,1]
+      assert_equal([[1,0,1,1,1]], candidates)
 
-      logic = PixeLogic.new({:width => 5,
-                             :height => 5,
-                             :hint_h => [[1], [1,1], [3],   [1,1,1], [5]],
-                             :hint_v => [[2], [2,1], [1,3], [2,1],   [2]]
-                            })
+      candidates = PixeLogic.getCandidates(5, [])
+      assert_equal([[0,0,0,0,0]], candidates)
 
-      assert_equal(logic.width, 5)
-      assert_equal(logic.height, 5)
-    end
+      candidates = PixeLogic.getCandidates(5, [0])
+      assert_equal([[0,0,0,0,0]], candidates)
+end
 
     def testGetProduct
       ###
@@ -500,10 +494,8 @@ end
         [0,1,0,1,1]]
       line = [1,nil,nil,nil,nil]
       new_candidates = PixeLogic.eliminateCandidates(line, candidates)
-#pp new_candidates
-      #  [1,0,1,1,0], [1,0,0,1,1]
-
       assert_equal(2, new_candidates.length)
+      assert_equal([[1,0,1,1,0], [1,0,0,1,1]], new_candidates)
 
       candidates = [
         [1,0,1,1,0],
@@ -511,9 +503,8 @@ end
         [0,1,0,1,1]]
       line = [0,nil,nil,nil,nil]
       new_candidates = PixeLogic.eliminateCandidates(line, candidates)
-#pp new_candidates
       assert_equal(1, new_candidates.length)
-      # [0,1,0,1,1]
+      assert_equal([[0,1,0,1,1]], new_candidates)
     end
 
     def testGetLine
@@ -550,81 +541,81 @@ end
       # TODO 解の比較
     end
 
-    def testSolve10x10
-      # http://www.minicgi.net/logic/logic.html?num=30313 「がんばれ熊本」
-      logic = PixeLogic.new({ :width  => 10,
-                              :height => 10,
-                              :hint_h => [
-                                [4],
-                                [1,1],
-                                [6,1],
-                                [9],
-                                [4,3],
-                                [4,1,3],
-                                [4,3],
-                                [10],
-                                [6],
-                                [1,2,1]
-                              ],
-                              :hint_v => [
-                                [6,1],
-                                [6],
-                                [6],
-                                [6],
-                                [2,2],
-                                [4,1,3],
-                                [1,1,3],
-                                [1,6],
-                                [9],
-                                [6]
-                              ]
-                            })
-      logic.solve
-      puts logic.loop_count
-      # TODO 解の比較
-    end
-
-    def testSolve15x15
-      logic = PixeLogic.new({ :width  => 15,
-                              :height => 15,
-                              :hint_h => [
-                                [7],
-                                [9],
-                                [2,3,2],
-                                [1,4,4,1],
-                                [1,9,2],
-                                [1,7,1],
-                                [3,5,3],
-                                [4,3,2],
-                                [3,2,1,1],
-                                [1,1,1,1,2],
-                                [1,1,1,1],
-                                [2,1,1,2],
-                                [2,2,1,2],
-                                [2,2,1,2],
-                                [2,3]],
-                              :hint_v => [
-                                [4,2,1],
-                                [1,1,2],
-                                [1,1,2,1],
-                                [4,1,2,1],
-                                [6,1,1,1],
-                                [2,6,2],
-                                [13],
-                                [3,3],
-                                [15],
-                                [2,5,1],
-                                [6,3,1],
-                                [4,1,3],
-                                [2,2],
-                                [1,2,2],
-                                [2,1,1]]
-                            })
-
-      logic.solve
-      puts logic.loop_count
-      # TODO 解の比較
-    end
+#    def testSolve10x10
+#      # http://www.minicgi.net/logic/logic.html?num=30313 「がんばれ熊本」
+#      logic = PixeLogic.new({ :width  => 10,
+#                              :height => 10,
+#                              :hint_h => [
+#                                [4],
+#                                [1,1],
+#                                [6,1],
+#                                [9],
+#                                [4,3],
+#                                [4,1,3],
+#                                [4,3],
+#                                [10],
+#                                [6],
+#                                [1,2,1]
+#                              ],
+#                              :hint_v => [
+#                                [6,1],
+#                                [6],
+#                                [6],
+#                                [6],
+#                                [2,2],
+#                                [4,1,3],
+#                                [1,1,3],
+#                                [1,6],
+#                                [9],
+#                                [6]
+#                              ]
+#                            })
+#      logic.solve
+#      puts logic.loop_count
+#      # TODO 解の比較
+#    end
+#
+#    def testSolve15x15
+#      logic = PixeLogic.new({ :width  => 15,
+#                              :height => 15,
+#                              :hint_h => [
+#                                [7],
+#                                [9],
+#                                [2,3,2],
+#                                [1,4,4,1],
+#                                [1,9,2],
+#                                [1,7,1],
+#                                [3,5,3],
+#                                [4,3,2],
+#                                [3,2,1,1],
+#                                [1,1,1,1,2],
+#                                [1,1,1,1],
+#                                [2,1,1,2],
+#                                [2,2,1,2],
+#                                [2,2,1,2],
+#                                [2,3]],
+#                              :hint_v => [
+#                                [4,2,1],
+#                                [1,1,2],
+#                                [1,1,2,1],
+#                                [4,1,2,1],
+#                                [6,1,1,1],
+#                                [2,6,2],
+#                                [13],
+#                                [3,3],
+#                                [15],
+#                                [2,5,1],
+#                                [6,3,1],
+#                                [4,1,3],
+#                                [2,2],
+#                                [1,2,2],
+#                                [2,1,1]]
+#                            })
+#
+#      logic.solve
+#      puts logic.loop_count
+#      # TODO 解の比較
+#    end
 
   end
 
