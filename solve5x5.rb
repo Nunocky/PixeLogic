@@ -10,27 +10,23 @@ if __FILE__ == $0
                           :hint_v => [[2], [2,1], [1,3], [2,1],   [2]]
                         })
 
-  def logic.show_step
-    puts @loop_count
-    show
+  Signal.trap(:USR1) {
+    logic.dump
+   }
+
+  def logic.loop_start
+    dump
   end
 
-  def logic.show
-    @height.times do |y|
-      @width.times do |x|
-        if @field[Point.new(x,y)] == 0
-          print "✕"
-        elsif @field[Point.new(x,y)] == 1
-          print "■"
-        else
-          print "  "
-        end
-      end
-      print "\n"
-    end
+  begin
+    logic.solve
+  rescue => e
+    p e.message
+    logic.dump
   end
 
-  logic.solve
   puts ""
-  logic.show
+  logic.dump
+  puts ""
+  logic.show("■", "　", "？")
 end

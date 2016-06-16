@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 require './PixeLogic.rb'
 
+# http://tonakai.aki.gs/picturelogic/play/index.php?PNum=1074
 
 if __FILE__ == $0
   logic = PixeLogic.new({ :width  => 15,
@@ -9,59 +10,61 @@ if __FILE__ == $0
                           :hint_h => [
                             [7],
                             [9],
-                            [2,3,2],
-                            [1,4,4,1],
-                            [1,9,2],
-                            [1,7,1],
-                            [3,5,3],
-                            [4,3,2],
-                            [3,2,1,1],
-                            [1,1,1,1,2],
-                            [1,1,1,1],
-                            [2,1,1,2],
-                            [2,2,1,2],
-                            [2,2,1,2],
-                            [2,3]],
-                          :hint_v => [
-                            [4,2,1],
-                            [1,1,2],
-                            [1,1,2,1],
-                            [4,1,2,1],
-                            [6,1,1,1],
-                            [2,6,2],
-                            [13],
+                            [9],
+                            [5,5],
+                            [4,4],
+
+                            [4,1,1,4],
                             [3,3],
-                            [15],
-                            [2,5,1],
-                            [6,3,1],
-                            [4,1,3],
-                            [2,2],
-                            [1,2,2],
-                            [2,1,1]]
+                            [2,3,3,2],
+                            [1,2,2,1],
+                            [1,1],
+
+                            [1,2,2,1],
+                            [1,2,2,1],
+                            [2,3,2],
+                            [3,3],
+                            [9]
+                          ],
+
+                          :hint_v => [
+                            [7],
+                            [3,2],
+                            [4,2,1],
+                            [5,1,2,2],
+                            [6,2,1],
+
+                            [5,1,1],
+                            [4,1,1,1,1],
+                            [3,1,1],
+                            [4,1,1,1,1],
+                            [5,1,1],
+
+                            [6,2,1],
+                            [5,1,2,2],
+                            [4,2,1],
+                            [3,2],
+                            [7]
+                          ]
                         })
 
-  def logic.show_step
-    puts @loop_count
-    show
+  Signal.trap(:USR1) {
+    logic.dump
+   }
+
+  def logic.loop_end
+    dump
   end
 
-
-  def logic.show
-    @height.times do |y|
-      @width.times do |x|
-        if @field[Point.new(x,y)] == 0
-          print "✕"
-        elsif @field[Point.new(x,y)] == 1
-          print "■"
-        else
-          print "  "
-        end
-      end
-      print "\n"
-    end
+  begin
+    logic.solve
+  rescue => e
+    p e.message
+    logic.dump
   end
 
-  logic.solve
   puts ""
-  logic.show
+  logic.dump
+  puts ""
+  logic.show("■", "　", "？")
 end
