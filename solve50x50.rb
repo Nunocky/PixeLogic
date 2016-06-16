@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 require './PixeLogic.rb'
 
+# http://www.k5.dion.ne.jp/~kitaji/images/logic/q018_b.gif
 
 if __FILE__ == $0
   logic = PixeLogic.new({ :width  => 50,
@@ -113,9 +114,9 @@ if __FILE__ == $0
 
                             [2,9,10,25],
                             [3,46],
-                            [3,45],
+                            [4,45],
                             [5,6,36],
-                            [6,3,6,15],
+                            [6,3,16,15],
 
                             [1,7,23,12],
                             [2,9,34],

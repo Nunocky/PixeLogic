@@ -6,11 +6,11 @@ require './Point.rb'
 
 class PixeLogic
   attr_reader   :width, :height
+  attr_reader   :hint_v, :hint_h
   attr_accessor :field
-  attr_reader   :hint_v ,:hint_h
   attr_reader   :candidates_v, :candidates_h
-  attr_reader    :scan_priority
   attr_reader   :loop_count
+  attr_reader   :scan_priority
 
   def initialize(data)
     @width  = data[:width]
@@ -56,7 +56,6 @@ class PixeLogic
     end
   end
 
-
   #
   # @fieldの配列を得る
   # dir:: "v"または "h"
@@ -82,6 +81,8 @@ class PixeLogic
   # dir:: "v"または "h"
   # n:: 行、または列番号
   def getCandidatesOfLine(dir, n)
+
+    # TODO, フィールド情報も渡し、確定した情報を利用する。確定情報とマッチしない部分は探索を止める
     ary = nil
 
     if dir == "v"
@@ -106,7 +107,6 @@ class PixeLogic
 
 puts "scan_line(#{dir},#{n})"
 
-    updated = false
     dir_next = (dir == "h")? "v" : "h"
     x, y = n, n
 
@@ -114,9 +114,11 @@ puts "scan_line(#{dir},#{n})"
     line       = line_old.dup
     candidates = getCandidatesOfLine(dir, n)
 
+#puts "#{candidates.to_s}"
+
     if candidates.length == 1
 
-puts "候補が一つだけ"
+puts "配置候補が一つだけ → 確定"
       line = candidates[0]
 
       # 新規に確定したピクセルに対してスキャンを登録する (ドット、空白ともに)
@@ -124,7 +126,7 @@ puts "候補が一つだけ"
         next if line_old[idx] != nil
 
         puts "新しい探索対象 #{dir_next},#{idx}"
-        @scan_stack.unshift([dir_next, idx]) # unless @scan_stack.include?([dir_next, idx])
+        @scan_stack.push([dir_next, idx]) # unless @scan_stack.include?([dir_next, idx])
 
         if dir == "v"
           y = idx
@@ -136,13 +138,12 @@ puts "候補が一つだけ"
       end
 
     else
-
-      puts "不要な候補を取り除く"
+puts "複数の配置候補"
       new_candidates = PixeLogic.eliminateCandidates(line, candidates)
 
-      puts "OLD #{candidates.to_s}"
-      puts "NEW #{new_candidates.to_s}"
-      puts "#{candidates.length} -> #{new_candidates.length}"
+#      puts "OLD #{candidates.to_s}"
+#      puts "NEW #{new_candidates.to_s}"
+puts "candidates eliminated : #{candidates.length} -> #{new_candidates.length}"
       if dir == "v"
         @candidates_v[n] = new_candidates
       else
@@ -165,7 +166,7 @@ puts "候補が一つだけ"
           setPixel(Point.new(x, y), p)
 
           puts "新しい探索対象 #{dir_next},#{idx}"
-          @scan_stack.unshift([dir_next, idx]) # unless @scan_stack.include?([dir_next, idx])
+          @scan_stack.push([dir_next, idx]) # unless @scan_stack.include?([dir_next, idx])
         end
 
       else
@@ -186,10 +187,10 @@ puts "候補が一つだけ"
           setPixel(Point.new(x,y), 1)
 
           puts "新しい探索対象 #{dir_next},#{idx}"
-          @scan_stack.unshift([dir_next, idx]) # unless @scan_stack.include?([dir_next, idx])
+          @scan_stack.push([dir_next, idx]) # unless @scan_stack.include?([dir_next, idx])
         end
 
-        # TODO 論理和をとり、 0のところは空白で確定する
+        # 論理和をとり、 0のところは空白で確定する
         line = PixeLogic.getLineSum(new_candidates)
         line.each_with_index do |p, idx|
           next if line_old[idx] == 0
@@ -203,13 +204,10 @@ puts "候補が一つだけ"
 
           setPixel(Point.new(x,y), 0)
           puts "新しい探索対象 #{dir_next},#{idx}"
-          @scan_stack.unshift([dir_next, idx]) # unless @scan_stack.include?([dir_next, idx])
+          @scan_stack.push([dir_next, idx]) # unless @scan_stack.include?([dir_next, idx])
         end
       end
-
     end
-
-    updated
   end
 
   def solve_completed?
@@ -235,43 +233,10 @@ puts "候補が一つだけ"
     false
   end
 
-  def setup
-    @candidates_h = []
-    @candidates_v = []
-
-    @field       = @field_bak.dup
-    @field_total = @field_total_bak
-
-    # ヒントから候補を作成
-    if @hint_h
-      @hint_h.each do |hint|
-        @candidates_h << PixeLogic.getCandidates(@width, hint)
-      end
-    end
-
-    if @hint_v
-      @hint_v.each do |hint|
-        @candidates_v << PixeLogic.getCandidates(@height, hint)
-      end
-    end
-
-    # 初期走査対象の初期化
-    @scan_stack = []
-
-    @width.times do |n|
-      @scan_stack.push(["v", n])
-    end
-
-    @height.times do |n|
-      @scan_stack.push(["h", n])
-    end
-  end
-
   def setup2
     # 占有率の最も高いところを見つけて配列にする
     # -> 計算して配列 @scan_priorityへ
     # @scan_priority[0] = ["v", 3] とか
-
     h = {}
 
     @hint_h.each_with_index do |hint, n|
@@ -290,7 +255,6 @@ puts "候補が一つだけ"
   end
 
   def solve2
-
     setup2
 
     puts "scan_priority"
@@ -301,7 +265,7 @@ puts "候補が一つだけ"
     @scan_stack = [] unless @scan_stack
     @loop_count = 0
 
-    # TODO 有力そうな候補を先に登録
+    # 有力そうな候補(占有率の高い列)を先に登録
     @scan_priority.each do |ary|
         @scan_stack.push ary[0] if ary[0]
     end
@@ -325,30 +289,62 @@ puts "候補が一つだけ"
     public_send_if_defined(:solve_end)
   end
 
-  def solve0
-    setup
+#  def setup
+#    @candidates_h = []
+#    @candidates_v = []
+#
+#    @field       = @field_bak.dup
+#    @field_total = @field_total_bak
+#
+#    # ヒントから候補を作成
+#    if @hint_h
+#      @hint_h.each do |hint|
+#        @candidates_h << PixeLogic.getCandidates(@width, hint)
+#      end
+#    end
+#
+#    if @hint_v
+#      @hint_v.each do |hint|
+#        @candidates_v << PixeLogic.getCandidates(@height, hint)
+#      end
+#    end
+#
+#    # 初期走査対象の初期化
+#    @scan_stack = []
+#
+#    @width.times do |n|
+#      @scan_stack.push(["v", n])
+#    end
+#
+#    @height.times do |n|
+#      @scan_stack.push(["h", n])
+#    end
+#  end
 
-    @loop_count = 0
-
-    public_send_if_defined(:solve_start)
-    while 0 < @scan_stack.length
-
-      public_send_if_defined(:loop_start)
-      ary = @scan_stack.pop
-      break until ary
-
-      @current_dir, @current_n = ary
-
-      updated = scan_line(@current_dir, @current_n)
-
-      public_send_if_defined(:loop_end)
-
-      @loop_count += 1
-      break if solve_completed?
-    end
-
-    public_send_if_defined(:solve_end)
-  end
+#  def solve0
+#    setup
+#
+#    @loop_count = 0
+#
+#    public_send_if_defined(:solve_start)
+#    while 0 < @scan_stack.length
+#
+#      public_send_if_defined(:loop_start)
+#      ary = @scan_stack.pop
+#      break until ary
+#
+#      @current_dir, @current_n = ary
+#
+#      updated = scan_line(@current_dir, @current_n)
+#
+#      public_send_if_defined(:loop_end)
+#
+#      @loop_count += 1
+#      break if solve_completed?
+#    end
+#
+#    public_send_if_defined(:solve_end)
+#  end
 
   alias_method :solve, :solve2
 
@@ -356,6 +352,9 @@ puts "候補が一つだけ"
     public_send(sym) if respond_to?(sym)
   end
 
+  #
+  # 結果を表示する
+  #
   def show(d="O", s=" ", u=".")
     @height.times do |y|
       @width.times do |x|
@@ -369,13 +368,14 @@ puts "候補が一つだけ"
   end
 
 
+  #
+  # 内部状態を出力する
+  #
   def dump(p="O", s=" ", u=".")
-
-    # 内部状態を出力する
     puts "--------------------------------------------------------------------------------"
     puts "loop_count=#{@loop_count}"
-    puts "width=#{@width}"
-    puts "height=#{@height}"
+#    puts "width=#{@width}"
+#    puts "height=#{@height}"
 
     if @candidates_h
       puts "candidates_h"
@@ -399,7 +399,7 @@ puts "候補が一つだけ"
   #
   # 候補の算出
   #
-  def self.getCandidates(width, pix)
+  def self.getCandidates(width, pix, base=nil)
     candidates = []
 
     return [] if width == 0 || pix == nil
@@ -430,7 +430,7 @@ puts "候補が一つだけ"
     end
 
     ary = []
-    self.gc_f0(ary, width, 0, spcs, pix)
+    self.gc_f0(ary, width, 0, spcs, pix, base)
 
     ary.each do |spc|
       line = Array.new(width, 0)
@@ -457,7 +457,7 @@ puts "候補が一つだけ"
   end
 
   # getCandidatesの補助関数。再帰的に探索を行う
-  def self.gc_f0(result, width, n, spcs, pix)
+  def self.gc_f0(result, width, n, spcs, pix, base = nil)
     return if spcs.length-1 < n
 
     # 空白の数上限
@@ -475,8 +475,12 @@ puts "候補が一つだけ"
       v_old = spcs[n]
       spcs[n] = v
       temp = spcs.dup
+
+      # TODO , 確定情報を元に追加するか否か決める
       result << temp unless result.include? temp
+
       if 0 < total
+        # TODO 確定情報と矛盾するときは再帰呼び出しは行わない
         self.gc_f0(result, width, n+1, spcs, pix)
       end
       spcs[n] = v_old
@@ -532,10 +536,10 @@ puts "候補が一つだけ"
   def self.eliminateCandidates(line, candidates)
     ary_matched = []
 
-#puts "eliminateCandidates"
-#puts "#{line.to_s}"
+# puts "eliminateCandidates"
+# puts "#{line.to_s}"
     candidates.each do |candidate|
-#puts "#{candidate.to_s}"
+# puts "#{candidate.to_s}"
 
       matched = true
       length = line.length
@@ -798,14 +802,12 @@ end
 5     ■■■■■
 
 
-## TODO 
+## TODO
 
- * 枝切。 必要のなくなった探索を行わない
-  * ピクセルの論理積。すべて0になった時点で終了していい
-  * 探索ラインをスタックに積む際、重複したものを除く
+ * 解候補計算に確定情報を渡し、不必要な探索をやめる
+ * 開始前チェック、h,vの各ヒントのピクセル数が一致しなければ処理を中断する
+
  * 論理的に置けない場所に xを付ける
-
-
 
 
 
