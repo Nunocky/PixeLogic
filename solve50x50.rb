@@ -148,7 +148,5 @@ if __FILE__ == $0
   end
 
   puts ""
-  logic.dump
-  puts ""
   logic.show("■", "　")
 end

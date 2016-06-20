@@ -13,7 +13,7 @@ if __FILE__ == $0
    }
 
   def logic.loop_end
-    dump
+#    dump
   end
 
   begin
@@ -23,8 +23,6 @@ if __FILE__ == $0
     logic.dump
   end
 
-  puts ""
-  logic.dump
   puts ""
   logic.show("■", "　", "？")
 end

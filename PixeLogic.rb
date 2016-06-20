@@ -193,28 +193,7 @@ class PixeLogic
 
     #puts "#{candidates.to_s}"
 
-    if candidates.length == 1
-
-      puts "配置候補が一つだけ → 確定"
-      line = candidates[0]
-
-      # 新規に確定したピクセルに対してスキャンを登録する (ドット、空白ともに)
-      line.each_with_index do |p, idx|
-        next if line_old[idx] != nil
-
-        puts "新しい探索対象 #{dir_next},#{idx}"
-        @scan_stack.push([dir_next, idx]) # unless @scan_stack.include?([dir_next, idx])
-
-        if dir == "v"
-          y = idx
-        else
-          x = idx
-        end
-
-        setPixel(Point.new(x,y), p)
-      end
-
-    else
+    if 1 < candidates.length
       puts "複数の配置候補"
       new_candidates = PixeLogic.eliminateCandidates(line, candidates)
 
@@ -227,61 +206,68 @@ class PixeLogic
         @candidates_h[n] = new_candidates
       end
 
-      if new_candidates.length == 1
-        # 確定
-        # @fileldの該当する位置が nullなら、その位置を確定して新規スキャン対象を追加する
+      candidates = new_candidates
+    end
 
-        line.each_with_index do |p, idx|
-          next if p != nil
+    if candidates.length == 1
+      puts "配置候補が一つだけ → 確定"
+      line = candidates[0]
 
-          if dir == "v"
-            y = idx
-          else
-            x = idx
-          end
+      # 新規に確定したピクセルに対してスキャンを登録する (ドット、空白ともに)
+      line.each_with_index do |p, idx|
+        next if line_old[idx] != nil
 
-          setPixel(Point.new(x, y), p)
-
+        unless @scan_stack.include?([dir_next, idx])
           puts "新しい探索対象 #{dir_next},#{idx}"
-          @scan_stack.push([dir_next, idx]) # unless @scan_stack.include?([dir_next, idx])
+          @scan_stack.push([dir_next, idx])
+        end
+        if dir == "v"
+          y = idx
+        else
+          x = idx
         end
 
-      else
-        # 候補が複数残っている
-        #   → 論理積を取って確定ドットの領域を得る
-        #   → 1のところは確定。新規スキャン対象を追加
-        line = PixeLogic.getProductOfLine(new_candidates)
-        line.each_with_index do |p, idx|
-          # ドットが確定したところに再スキャン要求を出す
-          next if line_old[idx] == 1
-          next if p != 1
-          if dir == "v"
-            y = idx
-          else
-            x = idx
-          end
-
-          setPixel(Point.new(x,y), 1)
-
-          puts "新しい探索対象 #{dir_next},#{idx}"
-          @scan_stack.push([dir_next, idx]) # unless @scan_stack.include?([dir_next, idx])
+        setPixel(Point.new(x,y), p)
+      end
+    else
+      # 候補が複数残っている
+      #   → 論理積を取って確定ドットの領域を得る
+      #   → 1のところは確定。新規スキャン対象を追加
+      line = PixeLogic.getProductOfLine(new_candidates)
+      line.each_with_index do |p, idx|
+        # ドットが確定したところに再スキャン要求を出す
+        next if line_old[idx] == 1
+        next if p != 1
+        if dir == "v"
+          y = idx
+        else
+          x = idx
         end
 
-        # 論理和をとり、 0のところは空白で確定する
-        line = PixeLogic.getSumOfLine(new_candidates)
-        line.each_with_index do |p, idx|
-          next if line_old[idx] == 0
-          next if p != 0
+        setPixel(Point.new(x,y), 1)
 
-          if dir == "v"
-            y = idx
-          else
-            x = idx
-          end
-
-          setPixel(Point.new(x,y), 0)
+        unless @scan_stack.include?([dir_next, idx])
           puts "新しい探索対象 #{dir_next},#{idx}"
-          @scan_stack.push([dir_next, idx]) # unless @scan_stack.include?([dir_next, idx])
+          @scan_stack.push([dir_next, idx])
+        end
+      end
+
+      # 論理和をとり、 0のところは空白で確定する
+      line = PixeLogic.getSumOfLine(new_candidates)
+      line.each_with_index do |p, idx|
+        next if line_old[idx] == 0
+        next if p != 0
+
+        if dir == "v"
+          y = idx
+        else
+          x = idx
+        end
+
+        setPixel(Point.new(x,y), 0)
+        unless @scan_stack.include?([dir_next, idx])
+          puts "新しい探索対象 #{dir_next},#{idx}"
+          @scan_stack.push([dir_next, idx])
         end
       end
     end
@@ -516,16 +502,15 @@ puts "scan_priority"
       spc = Array.new(hint.length, 1)
       spc[0] = 0
 
-      # 再帰的に候補を調べる
       candidates = []
 
+      # 再帰的に候補を調べる
       self.gc_f0(width, 0, spc, hint, base) { |line|
-
         # 確定情報を元に追加するか否か決める
         match = true
         if base != nil
           base.each_with_index do |b, n|
-            next if b == nil    
+            next if b == nil
             if b != line[n]
               match = false
               break
@@ -534,13 +519,13 @@ puts "scan_priority"
         end
 
         if match
-          unless candidates.include? line
+#          unless candidates.include? line
             candidates << line
-          end
+#          end
         end
       }
 
-      candidates.sort
+      candidates.uniq
     end
 
     # getCandidatesの補助関数。再帰的に探索を行う
@@ -564,18 +549,15 @@ puts "scan_priority"
       match = compare_candidate(width, spc, pix, n, base)
 
       s0 = spc[n]
-      while 0 < count
+      while 0 <= count
+        line = calcLine(spc, pix, width)
+        block.call line if block_given?
         self.gc_f0(width, n+1, spc, pix, base, &block) if match
 
         spc[n] += 1
-        line = calcLine(spc, pix, width)
-        block.call line if block_given?
         count -= 1
       end
       spc[n] = s0
-
-      line = calcLine(spc, pix, width)
-      block.call line if block_given?
     end
 
     
@@ -621,8 +603,10 @@ puts "scan_priority"
     end
 
 
+    # TODO calclineは無駄。一々計算しなくても再帰処理の中で順次生成していけばいい
+
     # 空白、ドット情報から行・列の1ライン分を生成
-    # @param 
+    # @param
     # @param
     # @param
     # @return 1ライン分
@@ -630,22 +614,22 @@ puts "scan_priority"
       raise ArgumentError, "Bar Argument" if spc == nil
       raise ArgumentError, "Bar Argument" if hint == nil
       raise ArgumentError, "Bar Argument" if width <= 0
-      
-      line = Array.new(width, 0)
+
+      line = []
       elem_length = spc.length
-      idx = 0
 
       elem_length.times do |n|
-
         spc[n].times do
-          line[idx] = 0
-          idx += 1
+          line << 0
         end
 
         hint[n].times do
-          line[idx] = 1
-          idx += 1
+          line << 1
         end
+      end
+
+      (width - line.length).times do
+        line << 0
       end
 
       line
