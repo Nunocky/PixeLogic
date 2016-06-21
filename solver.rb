@@ -17,8 +17,8 @@ logic = PixeLogic.load(filename)
 def logic.loop_start
   puts "\e[H\e[2J"
   puts "# #{@loop_count}:"
-  show("　", "■", "？")
-  sleep 0.1
+#  show("　", "■", "？")
+#  sleep 0.1
 end
 
 begin

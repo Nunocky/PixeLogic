@@ -17,12 +17,60 @@
 #  3.35    17.43      0.90   304120     0.00     0.00  Fixnum#inspect
 #  3.31    18.32      0.89     8999     0.10     0.36  PixeLogic.getProductOfLine
 
-
-
-#
 require 'pp'
-require './Point.rb'
 
+# ================================================================================
+#
+# ================================================================================
+class Point
+  attr_accessor :x, :y
+
+  def initialize(x=0, y=0)
+    @x = x
+    @y = y
+  end
+
+  def ==(v)
+    return @x == v.x && @y == v.y
+  end
+
+  def eql?(other)
+    @x == other.x && @y == other.y
+  end
+
+  def hash
+    [@x, @y].hash
+  end
+end
+
+
+# ================================================================================
+#
+# ================================================================================
+class Cfg
+  attr_reader :width, :height, :hint_v, :hint_h
+
+  def Width (v)
+    @width = v
+  end
+
+  def Height (v)
+    @height = v
+  end
+
+  def HintV(v)
+    @hint_v = v
+  end
+
+  def HintH(v)
+    @hint_h = v
+  end
+end
+
+
+# ================================================================================
+#
+# ================================================================================
 class PixeLogic
   attr_reader   :width, :height
   attr_reader   :hint_v, :hint_h
@@ -35,33 +83,29 @@ class PixeLogic
     @field = {}
     @dot_count = 0
 
-    config = File.read(filename)
+    configfile = File.read(filename)
+
+    cfg = Cfg.new
+    cfg.instance_eval(configfile)
 
     logic = PixeLogic.new
-    logic.instance_eval(config)
+#    logic.instance_eval(config)
+
     logic.instance_eval {
+      @width  = cfg.width
+      @height = cfg.height
+      @hint_v = cfg.hint_v
+      @hint_h = cfg.hint_h
 
       unless @width != nil && @height != nil && @hint_v != nil && hint_h != nil
-        STDERR.puts "you must set @width, @height, @hint_v, and @hint_h"
+        STDERR.puts "you must declare Width, Height, HintV, and HintH"
         exit
       end
 
       @candidates_v = Array.new(@width)
       @candidates_h = Array.new(@height)
 
-#      #  確定している空白
-#      if blank != nil
-#        blank.each do |pt|
-#          setPixel(pt, 0)
-#        end
-#      end
-#
-#      #  確定しているドット
-#      if dot
-#        dot.each do |pt|
-#          setPixel(pt, 1)
-#        end
-#      end
+      # TODO: 確定している空白, ドット
 
       check_hints
     }
@@ -126,7 +170,7 @@ class PixeLogic
       end
     end
 
-    raise ArgumentError, "sum_v and sum_h not match" if sum_v != sum_h
+    raise "sum_v and sum_h not match" if sum_v != sum_h
   end
 
   #
@@ -696,6 +740,28 @@ end
 
 
 if __FILE__ == $0
+  class PointTest < Test::Unit::TestCase
+    def testInit0
+      p0 = Point.new
+      assert_equal(p0.x, 0)
+      assert_equal(p0.y, 0)
+    end
+
+    def testInit1
+      p1 = Point.new(1, -2)
+      assert_equal(p1.x,  1)
+      assert_equal(p1.y, -2)
+    end
+
+    def testEqual
+      p0 = Point.new
+      p1 = Point.new(0,0)
+      p2 = Point.new(1,2)
+      assert_equal(p0, p1)
+      assert_not_equal(p0, p2)
+    end
+  end
+
   class PixeLogicTest < Test::Unit::TestCase
     def test00_Init0
       logic = PixeLogic.new({:width => 5,
