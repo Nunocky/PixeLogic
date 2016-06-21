@@ -236,10 +236,10 @@ class PixeLogic
       line.each_with_index do |p, idx|
         next if line_old[idx] != nil
 
-#        unless @scan_stack.include?([dir_next, idx])
+        unless @scan_stack.include?([dir_next, idx])
           puts "新しい探索対象 #{dir_next},#{idx}"
           @scan_stack.push([dir_next, idx])
-#        end
+        end
         if dir == "v"
           y = idx
         else
@@ -266,10 +266,10 @@ class PixeLogic
 
         setPixel(Point.new(x,y), 1)
 
-#        unless @scan_stack.include?([dir_next, idx])
+        unless @scan_stack.include?([dir_next, idx])
           puts "新しい探索対象 #{dir_next},#{idx}"
           @scan_stack.push([dir_next, idx])
-#        end
+        end
       end
 
       # 論理和をとり、 0のところは空白で確定する
@@ -286,10 +286,10 @@ class PixeLogic
 
         setPixel(Point.new(x,y), 0)
 
-#        unless @scan_stack.include?([dir_next, idx])
+        unless @scan_stack.include?([dir_next, idx])
           puts "新しい探索対象 #{dir_next},#{idx}"
           @scan_stack.push([dir_next, idx])
-#        end
+        end
       end
     end
   end
@@ -543,7 +543,7 @@ class PixeLogic
 
         if block_given?
           match = compare_candidate(line, base)
-          block.call line if match
+          block.call line.dup if match
         end
         return
       end
