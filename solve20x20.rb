@@ -63,8 +63,11 @@ if __FILE__ == $0
     logic.dump
    }
 
+def logic.loop_start
+puts @loop_count
+end
   def logic.loop_end
-    dump
+#    dump
   end
 
   begin

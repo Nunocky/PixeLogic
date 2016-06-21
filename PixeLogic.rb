@@ -1,7 +1,24 @@
 #!/usr/bin/env ruby
 # -*- coding: utf-8 -*-
 
-#TODO 時間を測る
+# TODO Pointの除外 Arrayで代用可能
+#
+# TODO プロファイル結果 (20x20)
+#
+#  %   cumulative   self              self     total
+# time   seconds   seconds    calls  ms/call  ms/call  name
+# 14.93     4.01      4.01    15244     0.26     0.32  Array#inspect
+# 10.43     6.81      2.80    33680     0.08     0.73  PixeLogic#show
+# 10.32     9.58      2.77    57195     0.05     0.14  PixeLogic.compare_canidate
+#  8.79    11.94      2.36    30475     0.08     1.25  PixeLogic.gc_f1
+#  6.29    13.63      1.69    13285     0.13     1.94  Integer#times
+#  5.47    15.10      1.47    40605     0.04     0.04  Array#hash
+#  5.33    16.53      1.43   212491     0.01     0.01  Fixnum#==
+#  3.35    17.43      0.90   304120     0.00     0.00  Fixnum#inspect
+#  3.31    18.32      0.89     8999     0.10     0.36  PixeLogic.getProductOfLine
+
+
+
 #
 require 'pp'
 require './Point.rb'
@@ -45,7 +62,7 @@ class PixeLogic
 #          setPixel(pt, 1)
 #        end
 #      end
-      
+
       check_hints
     }
 
@@ -108,7 +125,7 @@ class PixeLogic
         sum_v += v
       end
     end
-    
+
     raise ArgumentError, "sum_v and sum_h not match" if sum_v != sum_h
   end
 
@@ -116,6 +133,8 @@ class PixeLogic
   #
   #
   def setPixel(pt, v)
+    raise ArgumentError, "pt == null" unless pt
+
     f_old = @field[pt]
     @field[pt] = v
 
@@ -179,7 +198,7 @@ class PixeLogic
   # @param [String] dir "v" または "h"
   # @param [Integer] n 行、または列の番号
   # @todo エラーチェック
-  
+
   def scan_line(dir, n)
 
     puts "scan_line(#{dir},#{n})"
@@ -197,16 +216,16 @@ class PixeLogic
       puts "複数の配置候補"
       new_candidates = PixeLogic.eliminateCandidates(line, candidates)
 
-      #      puts "OLD #{candidates.to_s}"
-      #      puts "NEW #{new_candidates.to_s}"
-      puts "candidates eliminated : #{candidates.length} -> #{new_candidates.length}"
-      if dir == "v"
-        @candidates_v[n] = new_candidates
-      else
-        @candidates_h[n] = new_candidates
-      end
+      if candidates.length != new_candidates.length
+        puts "candidates eliminated : #{candidates.length} -> #{new_candidates.length}"
+        if dir == "v"
+          @candidates_v[n] = new_candidates
+        else
+          @candidates_h[n] = new_candidates
+        end
 
-      candidates = new_candidates
+        candidates = new_candidates
+      end
     end
 
     if candidates.length == 1
@@ -217,17 +236,18 @@ class PixeLogic
       line.each_with_index do |p, idx|
         next if line_old[idx] != nil
 
-        unless @scan_stack.include?([dir_next, idx])
+#        unless @scan_stack.include?([dir_next, idx])
           puts "新しい探索対象 #{dir_next},#{idx}"
           @scan_stack.push([dir_next, idx])
-        end
+#        end
         if dir == "v"
           y = idx
         else
           x = idx
         end
 
-        setPixel(Point.new(x,y), p)
+        setPixel(Point.new(x, y), p)
+
       end
     else
       # 候補が複数残っている
@@ -246,10 +266,10 @@ class PixeLogic
 
         setPixel(Point.new(x,y), 1)
 
-        unless @scan_stack.include?([dir_next, idx])
+#        unless @scan_stack.include?([dir_next, idx])
           puts "新しい探索対象 #{dir_next},#{idx}"
           @scan_stack.push([dir_next, idx])
-        end
+#        end
       end
 
       # 論理和をとり、 0のところは空白で確定する
@@ -265,10 +285,11 @@ class PixeLogic
         end
 
         setPixel(Point.new(x,y), 0)
-        unless @scan_stack.include?([dir_next, idx])
+
+#        unless @scan_stack.include?([dir_next, idx])
           puts "新しい探索対象 #{dir_next},#{idx}"
           @scan_stack.push([dir_next, idx])
-        end
+#        end
       end
     end
   end
@@ -336,9 +357,9 @@ class PixeLogic
   def solve2
     setup2
 
-puts "scan_priority"
+    puts "scan_priority"
     @scan_priority.each do |v|
-      puts v.to_s 
+      puts v.to_s
     end
 
     @scan_stack = [] unless @scan_stack
@@ -365,6 +386,8 @@ puts "scan_priority"
       public_send_if_defined(:loop_end)
       break if solve_completed?
       @loop_count += 1
+
+      @scan_stack.uniq!
     end
 
     public_send_if_defined(:solve_end)
@@ -479,160 +502,106 @@ puts "scan_priority"
   #
   class << self
     # 候補の算出
-    # @param Integer width 行・列の長さ
-    # @param [Array] pix ヒントの数字配列
-    # @param  [Array] base 確定した配置情報。 長さは width
-    # @return [Array] 解候補の配列
-    # @todo 高速化。baseを元に不要な探索を中断する
     # width = 5, ary = [1]に対して、以下の配列を返す
     # [[1,0,0,0,0],
     #  [0,1,0,0,0],
     #  [0,0,1,0,0],
     #  [0,0,0,1,0],
     #  [0,0,0,0,1]]
+    # @param Integer width 行・列の長さ
+    # @param [Array] pix ヒントの数字配列
+    # @param  [Array] base 確定した配置情報。 長さは width
+    # @return [Array] 解候補の配列
     def getCandidates(width, hint, base=nil)
       raise ArgumentError, "invalid argument"  if width == 0 || hint == nil
 
       return [ Array.new(width, 0) ] if hint.length == 0 || (hint.length==1 && hint[0] == 0)
 
-      # spcの条件
-      # * 要素の数は hintの個数と同じ
-      # * spcの要素は、最初の要素は 0以上、それ以外は1以上の整数
-      # * 要素の合計は (width - hint.length)以下
-      spc = Array.new(hint.length, 1)
-      spc[0] = 0
-
+      spc        = Array.new(hint.length) {|n| (n==0) ? 0 : 1 }
       candidates = []
-
-      # 再帰的に候補を調べる
-      self.gc_f0(width, 0, spc, hint, base) { |line|
-        # 確定情報を元に追加するか否か決める
-        match = true
-        if base != nil
-          base.each_with_index do |b, n|
-            next if b == nil
-            if b != line[n]
-              match = false
-              break
-            end
-          end
-        end
-
-        if match
-#          unless candidates.include? line
-            candidates << line
-#          end
-        end
+      line0      = Array.new(width, nil)
+      self.gc_f1(width, 0, spc, hint, line0, base) { |line|
+        candidates << line
       }
 
       candidates.uniq
     end
 
-    # getCandidatesの補助関数。再帰的に探索を行う
-    def gc_f0(width, n, spc, pix, base = nil, &block)
+    # getCandidatesの補助関数
+    def gc_f1(width, n, spc, pix, line, base = nil, &block)
       raise ArgumentError, "Bad Argument" if spc == nil
       raise ArgumentError, "Bad Argument" if pix == nil
+      raise ArgumentError, "Bad Argument" if width != line.length
 
       num_elements = spc.length
 
-      return if num_elements <= n
+      if num_elements == n
+        # 再帰処理終了
+        line.length.times do |idx|
+          line[idx] = 0 if line[idx] == nil
+        end
 
-      # count <- 空白の数上限
-      count = width
+        if block_given?
+          match = compare_candidate(line, base)
+          block.call line if match
+        end
+        return
+      end
+
+      # spc_count <- 空白の数上限
+      spc_count = width
       num_elements.times do |idx|
-        count -= spc[idx] if  n != idx
-        count -= pix[idx]
-      end
-      count -= spc[n]
-
-      # TODO : nまでの要素をbaseと比較、マッチした時だけ再帰呼び出しする
-      match = compare_candidate(width, spc, pix, n, base)
-
-      s0 = spc[n]
-      while 0 <= count
-        line = calcLine(spc, pix, width)
-        block.call line if block_given?
-        self.gc_f0(width, n+1, spc, pix, base, &block) if match
-
-        spc[n] += 1
-        count -= 1
-      end
-      spc[n] = s0
-    end
-
-    
-    def compare_candidate(width, spc, pix, n, base = nil)
-# return true
-      return true if base == nil
-      
-      temp = []
-
-      n.times do |i|
-        spc[i].times do
-          temp << 0
-        end
-        pix[i].times do
-          temp << 1
-        end
+        spc_count -= spc[idx] if idx != n
+        spc_count -= pix[idx]
       end
 
-      # BUG : tempの長さがwidthを超えてしまうことがある
-      if width < temp.length
-        puts "width: #{width}"
-        puts "spc: #{spc}"
-        puts "pix: #{pix}"
-        puts "n: #{n}"
-        puts "temp : #{temp.to_s}"
+      # line上の最初の未定義のインデックス
+      idx      = 0
+      idx     += 1  while line[idx] != nil
 
-        raise ArgumentError
-      end
+      idx_bak  = idx
+      line_bak = line.dup  #TODO  dupしないほうが高速化できると思う
+      spc_bak  = spc[n]
 
-
-      match = true
-      temp.each_with_index do |v, idx|
-        next if base[idx] == nil
-        if base[idx] != v
-          match = false
-          break
-        end
-      end
-#      pp "base #{base.to_s}"
-#      pp "temp #{temp.to_s}"
-#      pp match.to_s
-      match
-    end
-
-
-    # TODO calclineは無駄。一々計算しなくても再帰処理の中で順次生成していけばいい
-
-    # 空白、ドット情報から行・列の1ライン分を生成
-    # @param
-    # @param
-    # @param
-    # @return 1ライン分
-    def calcLine(spc, hint, width)
-      raise ArgumentError, "Bar Argument" if spc == nil
-      raise ArgumentError, "Bar Argument" if hint == nil
-      raise ArgumentError, "Bar Argument" if width <= 0
-
-      line = []
-      elem_length = spc.length
-
-      elem_length.times do |n|
+      while spc[n] <= spc_count
         spc[n].times do
-          line << 0
+          line[idx] = 0
+          idx += 1
         end
 
-        hint[n].times do
-          line << 1
+        pix[n].times do
+          line[idx] = 1
+          idx += 1
+        end
+
+        # 途中でも適合しないことが確実なら探索を終わらせる
+        if compare_candidate(line, base)
+          gc_f1(width, n+1, spc, pix, line, base, &block)
+        end
+
+        line    = line_bak.dup
+        idx     = idx_bak
+        spc[n] += 1
+      end
+
+      spc[n] = spc_bak
+    end
+
+    def compare_candidate(field_fixed, base = nil)
+      return true if base == nil
+
+
+      count = [field_fixed.length, base.length].min
+
+      count.times do |i|
+        next unless base[i] != nil && field_fixed[i] != nil
+
+        if base[i] != field_fixed[i]
+          return false
         end
       end
 
-      (width - line.length).times do
-        line << 0
-      end
-
-      line
+      true
     end
 
     #
@@ -745,7 +714,7 @@ if __FILE__ == $0
         [0,1,0,1,1] ].each do |el|
         assert_true(candidates.include? el)
       end
-      
+
       candidates = PixeLogic.getCandidates(5, [1])
       assert_equal(5, candidates.length)
       [ [1,0,0,0,0],
@@ -775,7 +744,7 @@ if __FILE__ == $0
         assert_true(candidates.include? el)
       end
 
-      candidates = PixeLogic.getCandidates(5, [1,3])      
+      candidates = PixeLogic.getCandidates(5, [1,3])
       assert_equal(1, candidates.length)
       [[1,0,1,1,1]].each do |el|
         assert_true(candidates.include? el)
@@ -799,14 +768,14 @@ if __FILE__ == $0
       ].each do |el|
         assert_true(candidates.include? el)
       end
-      
+
       candidates = PixeLogic.getCandidates(5, [3], [0, nil, nil, nil, nil])
       assert_equal(2, candidates.length)
       [ [0,1,1,1,0],
         [0,0,1,1,1]].each do |el|
         assert_true(candidates.include? el)
       end
-      
+
       candidates = PixeLogic.getCandidates(5, [3], [nil, nil, nil, 1, nil])
       assert_equal(2, candidates.length)
       [ [0,0,1,1,1],
@@ -814,7 +783,7 @@ if __FILE__ == $0
       ].each do |el|
         assert_true(candidates.include? el)
       end
-      
+
 
     end
 

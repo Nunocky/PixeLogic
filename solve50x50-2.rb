@@ -5,29 +5,25 @@ require './PixeLogic.rb'
 if __FILE__ == $0
   logic = PixeLogic.load("ex50x50.rb")
 
-  Signal.trap(:USR1) {
-    logic.dump
-   }
-
   def logic.loop_start
-#    puts "----"
-#    puts "# #{@loop_count}:"
-#    show
-  end
+    puts "\e[H\e[2J"
+    puts "# #{@loop_count}:"
+    show("■", "　", "？")
 
-#  def logic.loop_end
-#    dump
-#  end
+    sleep 0.1
+  end
 
   begin
     logic.solve
+
+    puts "\e[H\e[2J"
+    puts "done."
+    logic.show("■", "　", "？")
+
   rescue => e
     p e.message
     logic.dump
   end
 
-  puts ""
-  logic.dump
-  puts ""
-  logic.show("■", "　")
+
 end
