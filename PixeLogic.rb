@@ -18,6 +18,45 @@
 
 require 'pp'
 require 'test/unit'
+require 'logger'
+
+# ================================================================================
+#  探索候補スタック
+#  TODO 追加時にフィールド情報から優先度を算出、ソートした状態を保つ
+# ================================================================================
+class Stack # < Array
+
+  #
+
+  def initialize(logic)
+    @ary = []
+    @field = logic.field
+  end
+
+  def push(v)
+    @ary.push v
+  end
+
+  def shift
+    @ary.shift
+  end
+
+  def unshift(v)
+    @ary.unshift(v)
+  end
+  def length
+    @ary.length
+  end
+
+  def include?(v)
+    @ary.include?(v)
+  end
+
+  def uniq!
+    @ary.uniq!
+  end
+end
+
 
 # ================================================================================
 #
@@ -83,6 +122,11 @@ class PixeLogic
   attr_reader   :loop_count
   attr_reader   :scan_priority
 
+  attr_reader   :logger
+
+  #
+  #
+  #
   def self.load(filename)
     @field = {}
     @dot_count = 0
@@ -93,7 +137,6 @@ class PixeLogic
     cfg.instance_eval(configfile)
 
     logic = PixeLogic.new
-#    logic.instance_eval(config)
 
     logic.instance_eval {
       @width  = cfg.width
@@ -109,8 +152,6 @@ class PixeLogic
       @candidates_v = Array.new(@width)
       @candidates_h = Array.new(@height)
 
-      # TODO: 確定している空白, ドット
-
       check_hints
     }
 
@@ -120,7 +161,11 @@ class PixeLogic
   #
   #
   #
-  def initialize(info = nil)
+  def initialize(info = nil, logger = nil)
+
+    @logger = logger || Logger.new(STDERR)
+    @logger.level = Logger::DEBUG # Logger::FATAL
+
     @field = {}
     @dot_count = 0
 
@@ -186,13 +231,11 @@ class PixeLogic
     f_old = @field[pt]
     @field[pt] = v
 
-#    STDERR.puts "WARNING : field value overriden" if f_old != nil
-
     if    v == 1 && f_old != 1
-      puts "setPixel(#{pt.to_s}, 1)"
+      logger.debug "setPixel(#{pt.to_s}, 1)"
       @dot_count += 1
-    elsif v == 0 && f_old == 1
-      puts "setPixel(#{pt.to_s}, 0)"
+    elsif v != 1 && f_old == 1
+      logger.debug "setPixel(#{pt.to_s}, 0)"
       @dot_count -= 1
     end
   end
@@ -225,7 +268,6 @@ class PixeLogic
   # @return [Array] 対応する行または列に対する解候補の配列
   # @todo エラーチェック
   def getCandidatesOfLine(dir, n, base)
-
     ary = nil
 
     if dir == "v"
@@ -249,24 +291,23 @@ class PixeLogic
   # @todo エラーチェック
 
   def scan_line(dir, n)
-
-puts "scan_line(#{dir},#{n})"
+logger.debug "scan_line(#{dir},#{n})"
 
     dir_next = (dir == "h")? "v" : "h"
     x, y = n, n
 
     line_old   = getFieldLine(dir, n)
     line       = line_old.dup
-puts "#{line_old.to_s}"
+logger.debug "#{line_old.to_s}"
 
     candidates = getCandidatesOfLine(dir, n, line)
 
     if 1 < candidates.length
-      puts "複数の配置候補"
+      logger.debug "複数の配置候補"
       new_candidates = PixeLogic.eliminateCandidates(line, candidates)
 
       if candidates.length != new_candidates.length
-        puts "candidates eliminated : #{candidates.length} -> #{new_candidates.length}"
+        logger.debug "candidates eliminated : #{candidates.length} -> #{new_candidates.length}"
         if dir == "v"
           @candidates_v[n] = new_candidates
         else
@@ -278,7 +319,7 @@ puts "#{line_old.to_s}"
     end
 
     if candidates.length == 1
-      puts "配置候補が一つだけ → 確定"
+      logger.debug "配置候補が一つだけ → 確定"
       line = candidates[0]
 
       # 新規に確定したピクセルに対してスキャンを登録する (ドット、空白ともに)
@@ -286,7 +327,7 @@ puts "#{line_old.to_s}"
         next if line_old[idx] != nil
 
         unless @scan_stack.include?([dir_next, idx])
-          puts "新しい探索対象 #{dir_next},#{idx}"
+          logger.debug "新しい探索対象 #{dir_next},#{idx}"
 #          @scan_stack.push([dir_next, idx])
           @scan_stack.unshift([dir_next, idx])
         end
@@ -317,7 +358,7 @@ puts "#{line_old.to_s}"
         setPixel(Point.new(x,y), 1)
 
         unless @scan_stack.include?([dir_next, idx])
-          puts "新しい探索対象 #{dir_next},#{idx}"
+          logger.debug "新しい探索対象 #{dir_next},#{idx}"
 #          @scan_stack.push([dir_next, idx])
           @scan_stack.unshift([dir_next, idx])
         end
@@ -338,7 +379,7 @@ puts "#{line_old.to_s}"
         setPixel(Point.new(x,y), 0)
 
         unless @scan_stack.include?([dir_next, idx])
-          puts "新しい探索対象 #{dir_next},#{idx}"
+          logger.debug "新しい探索対象 #{dir_next},#{idx}"
 #          @scan_stack.push([dir_next, idx])
           @scan_stack.unshift([dir_next, idx])
         end
@@ -400,9 +441,9 @@ puts "#{line_old.to_s}"
     # 占有率の大きなものを前に
     @scan_priority = h.sort  {|(k1, v1), (k2, v2)| v2 <=> v1 }
 
-    puts "scan_priority"
+    logger.debug "scan_priority"
     @scan_priority.each do |v|
-      puts v.to_s
+      logger.debug v.to_s
     end
   end
 
@@ -410,7 +451,7 @@ puts "#{line_old.to_s}"
   #
   #
   def solve
-    @scan_stack = [] # unless @scan_stack
+    @scan_stack = Stack.new(self) # unless @scan_stack
     @loop_count = 0
 
     # 有力そうな候補(占有率の高い列)を先に登録
@@ -420,7 +461,7 @@ puts "#{line_old.to_s}"
 
       # 0.5以下は確定するピクセルが無いので登録しても意味が無い
       if priority >= 0.7
-        puts "new scan line #{item.to_s}"
+        logger.debug "new scan line #{item.to_s}"
         @scan_stack.push item
       end
     end
@@ -521,7 +562,7 @@ puts "#{line_old.to_s}"
 
   # 前詰め後詰めで確定するピクセルを探す
   def sweepHeadAndTailJustified
-    puts "sweepHeadAndTailJustified"
+    logger.debug "sweepHeadAndTailJustified"
 
     # 水平方向
     @hint_h.each_with_index do |hint, y|

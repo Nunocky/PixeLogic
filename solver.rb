@@ -3,6 +3,12 @@
 
 require './PixeLogic.rb'
 
+# TODO オプションを色々
+#  * 途中経過を表示するか
+#  * 時間を表示
+#  * ループ間のウェイト時間設定
+
+
 if ARGV.length == 0
   puts "usage: ./solver.rb <filename>"
   exit
