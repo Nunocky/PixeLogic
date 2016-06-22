@@ -1,23 +1,23 @@
 #!/usr/bin/env ruby
 # -*- coding: utf-8 -*-
 
+# TODO デバッグ出力 loggerを使う
+# TODO USR1シグナルで内部状態をダンプ
 # TODO Pointの除外 Arrayで代用可能
-#
-# TODO プロファイル結果 (20x20)
-#
+
+
+# プロファイル結果 (20x20)
+
 #  %   cumulative   self              self     total
 # time   seconds   seconds    calls  ms/call  ms/call  name
-# 14.93     4.01      4.01    15244     0.26     0.32  Array#inspect
-# 10.43     6.81      2.80    33680     0.08     0.73  PixeLogic#show
-# 10.32     9.58      2.77    57195     0.05     0.14  PixeLogic.compare_canidate
-#  8.79    11.94      2.36    30475     0.08     1.25  PixeLogic.gc_f1
-#  6.29    13.63      1.69    13285     0.13     1.94  Integer#times
-#  5.47    15.10      1.47    40605     0.04     0.04  Array#hash
-#  5.33    16.53      1.43   212491     0.01     0.01  Fixnum#==
-#  3.35    17.43      0.90   304120     0.00     0.00  Fixnum#inspect
-#  3.31    18.32      0.89     8999     0.10     0.36  PixeLogic.getProductOfLine
+# 13.63     7.04      7.04   139753     0.05     1.08  PixeLogic.gc_f1
+# 12.74    13.62      6.58   245973     0.03     0.10  PixeLogic.compare_candidate
+# 10.92    19.26      5.64    74452     0.08     0.32  PixeLogic.getProductOfLine
+#  6.41    32.35      3.31   108772     0.03     0.14  PixeLogic.eliminateCandidates
+#  6.16    35.53      3.18    77397     0.04     0.18  PixeLogic.getSumOfLine
 
 require 'pp'
+require 'test/unit'
 
 # ================================================================================
 #
@@ -40,6 +40,10 @@ class Point
 
   def hash
     [@x, @y].hash
+  end
+
+  def to_s
+    return "[#{@x},#{@y}]"
   end
 end
 
@@ -182,11 +186,13 @@ class PixeLogic
     f_old = @field[pt]
     @field[pt] = v
 
-    STDERR.puts "WARNING : field value overriden" if f_old != nil
+#    STDERR.puts "WARNING : field value overriden" if f_old != nil
 
     if    v == 1 && f_old != 1
+      puts "setPixel(#{pt.to_s}, 1)"
       @dot_count += 1
     elsif v == 0 && f_old == 1
+      puts "setPixel(#{pt.to_s}, 0)"
       @dot_count -= 1
     end
   end
@@ -218,10 +224,9 @@ class PixeLogic
   # @param [Integer] n 行、または列の番号
   # @return [Array] 対応する行または列に対する解候補の配列
   # @todo エラーチェック
-  def getCandidatesOfLine(dir, n)
+  def getCandidatesOfLine(dir, n, base)
 
     ary = nil
-    base = getFieldLine(dir,n)
 
     if dir == "v"
       ary = @candidates_v[n]
@@ -245,16 +250,16 @@ class PixeLogic
 
   def scan_line(dir, n)
 
-    puts "scan_line(#{dir},#{n})"
+puts "scan_line(#{dir},#{n})"
 
     dir_next = (dir == "h")? "v" : "h"
     x, y = n, n
 
     line_old   = getFieldLine(dir, n)
     line       = line_old.dup
-    candidates = getCandidatesOfLine(dir, n)
+puts "#{line_old.to_s}"
 
-    #puts "#{candidates.to_s}"
+    candidates = getCandidatesOfLine(dir, n, line)
 
     if 1 < candidates.length
       puts "複数の配置候補"
@@ -282,7 +287,8 @@ class PixeLogic
 
         unless @scan_stack.include?([dir_next, idx])
           puts "新しい探索対象 #{dir_next},#{idx}"
-          @scan_stack.push([dir_next, idx])
+#          @scan_stack.push([dir_next, idx])
+          @scan_stack.unshift([dir_next, idx])
         end
         if dir == "v"
           y = idx
@@ -312,7 +318,8 @@ class PixeLogic
 
         unless @scan_stack.include?([dir_next, idx])
           puts "新しい探索対象 #{dir_next},#{idx}"
-          @scan_stack.push([dir_next, idx])
+#          @scan_stack.push([dir_next, idx])
+          @scan_stack.unshift([dir_next, idx])
         end
       end
 
@@ -332,7 +339,8 @@ class PixeLogic
 
         unless @scan_stack.include?([dir_next, idx])
           puts "新しい探索対象 #{dir_next},#{idx}"
-          @scan_stack.push([dir_next, idx])
+#          @scan_stack.push([dir_next, idx])
+          @scan_stack.unshift([dir_next, idx])
         end
       end
     end
@@ -373,7 +381,7 @@ class PixeLogic
   #
   #
   #
-  def setup2
+  def setup
     # 占有率の最も高いところを見つけて配列にする
     # -> 計算して配列 @scan_priorityへ
     # @scan_priority[0] = ["v", 3] とか
@@ -392,29 +400,57 @@ class PixeLogic
     # 占有率の大きなものを前に
     @scan_priority = h.sort  {|(k1, v1), (k2, v2)| v2 <=> v1 }
 
-    # TODO 0.5以下は確定するピクセルが無いので登録しても意味が無い
+    puts "scan_priority"
+    @scan_priority.each do |v|
+      puts v.to_s
+    end
   end
 
   #
   #
   #
-  def solve2
-    setup2
-
-    puts "scan_priority"
-    @scan_priority.each do |v|
-      puts v.to_s
-    end
-
-    @scan_stack = [] unless @scan_stack
+  def solve
+    @scan_stack = [] # unless @scan_stack
     @loop_count = 0
 
     # 有力そうな候補(占有率の高い列)を先に登録
+    setup
     @scan_priority.each do |ary|
-      val = ary[0]
-     @scan_stack.push val if val[1] > 0.5
-#      @scan_stack.push ary[0] if ary[0]
+      item, priority = ary
+
+      # 0.5以下は確定するピクセルが無いので登録しても意味が無い
+      if priority >= 0.7
+        puts "new scan line #{item.to_s}"
+        @scan_stack.push item
+      end
     end
+
+    # 前詰め、後詰めで確定するピクセルの探索
+    sweepHeadAndTailJustified
+
+#    # TODO v,hそれぞれについて、占有率を計算、 しきい値以上ならscan_stackに追加
+#
+#    priority_threshold = 0.5
+#
+#    @hint_h.each_with_index do |hint, idx|
+#      occupancy = PixeLogic.calcOccupancy(hint, @width)
+#      if occupancy > priority_threshold
+#        item = ["h", idx]
+#        puts "new scan line #{item.to_s} (#{occupancy})"
+#        @scan_stack.push item
+#      end
+#    end
+#
+#    @hint_v.each_with_index do |hint, idx|
+#      occupancy = PixeLogic.calcOccupancy(hint, @height)
+#      if occupancy > priority_threshold
+#        item = ["v", idx]
+#        puts "new scan line #{item.to_s} (#{occupancy})"
+#        @scan_stack.push item
+#      end
+#    end
+
+
 
     public_send_if_defined(:solve_start)
 
@@ -437,61 +473,7 @@ class PixeLogic
     public_send_if_defined(:solve_end)
   end
 
-  #  def setup
-  #    @candidates_h = []
-  #    @candidates_v = []
-  #
-  #    # ヒントから候補を作成
-  #    if @hint_h
-  #      @hint_h.each do |hint|
-  #        @candidates_h << PixeLogic.getCandidates(@width, hint)
-  #      end
-  #    end
-  #
-  #    if @hint_v
-  #      @hint_v.each do |hint|
-  #        @candidates_v << PixeLogic.getCandidates(@height, hint)
-  #      end
-  #    end
-  #
-  #    # 初期走査対象の初期化
-  #    @scan_stack = []
-  #
-  #    @width.times do |n|
-  #      @scan_stack.push(["v", n])
-  #    end
-  #
-  #    @height.times do |n|
-  #      @scan_stack.push(["h", n])
-  #    end
-  #  end
-
-  #  def solve0
-  #    setup
-  #
-  #    @loop_count = 0
-  #
-  #    public_send_if_defined(:solve_start)
-  #    while 0 < @scan_stack.length
-  #
-  #      public_send_if_defined(:loop_start)
-  #      ary = @scan_stack.pop
-  #      break until ary
-  #
-  #      @current_dir, @current_n = ary
-  #
-  #      updated = scan_line(@current_dir, @current_n)
-  #
-  #      public_send_if_defined(:loop_end)
-  #
-  #      @loop_count += 1
-  #      break if solve_completed?
-  #    end
-  #
-  #    public_send_if_defined(:solve_end)
-  #  end
-
-  alias_method :solve, :solve2
+#  alias_method :solve, :solve2
 
   def public_send_if_defined(sym)
     public_send(sym) if respond_to?(sym)
@@ -519,8 +501,6 @@ class PixeLogic
   def dump(p="O", s=" ", u=".")
     puts "--------------------------------------------------------------------------------"
     puts "loop_count=#{@loop_count}"
-    #    puts "width=#{@width}"
-    #    puts "height=#{@height}"
 
     if @candidates_h
       puts "candidates_h"
@@ -537,14 +517,101 @@ class PixeLogic
     end
 
     show(p,s,u)
+  end
 
-    #    puts "scan = #{@current_dir},#{@current_n}"
+  # 前詰め後詰めで確定するピクセルを探す
+  def sweepHeadAndTailJustified
+    puts "sweepHeadAndTailJustified"
+
+    # 水平方向
+    @hint_h.each_with_index do |hint, y|
+      line = PixeLogic.sweepLine(@width, hint)
+
+      line.each_with_index do |v, x|
+        if v == 1
+          setPixel(Point.new(x, y), 1) 
+          @scan_stack.push ["v", x]
+        end
+
+      end
+    end
+
+
+    # 垂直方向方向
+    @hint_v.each_with_index do |hint, x|
+      line = PixeLogic.sweepLine(@height, hint)
+
+      line.each_with_index do |v, y|
+        if v == 1
+          setPixel(Point.new(x, y), 1) if v == 1
+          @scan_stack.push ["h", y]
+        end
+      end
+    end
+
   end
 
   #
   # クラスメソッド
   #
   class << self
+
+    def sweepLine(length, hint)
+      numPix = 0
+      hint.each do |v|
+        numPix += v
+      end
+
+      pp hint.to_s
+
+      line0 = Array.new(length, 1)
+      line1 = Array.new(length, 1)
+
+      # 前詰め
+      x = 0
+      hint.each do |val|
+        x += val
+        if x < length
+          line0[x] = 0
+          x += 1
+        end
+      end
+      (x...length).each do
+        line0[x] = 0
+        x += 1
+      end
+
+      # 後詰め
+      x = length - 1
+      hint.reverse.each do |val|
+        x -= val
+        line1[x] = 0 if 0 <= x
+        x -= 1
+      end
+      (0..x).each do
+        line1[x] = 0
+        x -= 1
+      end
+
+      result = Array.new(length, 0)
+      # 前方
+      i=0
+      while line0[i] == 1
+        result[i] = (line1[i] == 1)? 1 : 0
+        i += 1
+      end
+
+      # 後方
+      i = length - 1
+      while line1[i] == 1
+        result[i] = (line0[i] == 1)? 1 : 0
+        i -= 1
+      end
+
+      result
+    end
+
+
     # 候補の算出
     # width = 5, ary = [1]に対して、以下の配列を返す
     # [[1,0,0,0,0],
@@ -604,7 +671,7 @@ class PixeLogic
       idx     += 1  while line[idx] != nil
 
       idx_bak  = idx
-      line_bak = line.dup  #TODO  dupしないほうが高速化できると思う
+      line_bak = line.dup  # dupしたほうが早い。 50x50で 2秒程度の差がでる
       spc_bak  = spc[n]
 
       while spc[n] <= spc_count
@@ -624,6 +691,9 @@ class PixeLogic
         end
 
         line    = line_bak.dup
+#        (idx_bak ... line.length).each do |i|
+#          line[i] = nil
+#        end
         idx     = idx_bak
         spc[n] += 1
       end
@@ -689,6 +759,9 @@ class PixeLogic
 
     end
 
+    
+
+
     #
     # 候補のふるい落とし
     # line::配列 (要素は nil, 0, 1のいずれか)
@@ -697,11 +770,7 @@ class PixeLogic
     def eliminateCandidates(line, candidates)
       ary_matched = []
 
-      # puts "eliminateCandidates"
-      # puts "#{line.to_s}"
       candidates.each do |candidate|
-        # puts "#{candidate.to_s}"
-
         matched = true
         length = line.length
 
@@ -740,29 +809,42 @@ end
 
 
 if __FILE__ == $0
+
   class PointTest < Test::Unit::TestCase
-    def testInit0
+    def test00_Init0
       p0 = Point.new
       assert_equal(p0.x, 0)
       assert_equal(p0.y, 0)
     end
 
-    def testInit1
+    def test01_Init1
       p1 = Point.new(1, -2)
       assert_equal(p1.x,  1)
       assert_equal(p1.y, -2)
     end
 
-    def testEqual
+    def test03_Equal
       p0 = Point.new
       p1 = Point.new(0,0)
       p2 = Point.new(1,2)
       assert_equal(p0, p1)
       assert_not_equal(p0, p2)
     end
+
+    def test04_Hash
+      a = Point.new(1,1)
+      b = Point.new(1,1)
+
+      h = {}
+      h[a] = -99
+      assert_equal(-99, h[b])
+
+    end
+
   end
 
   class PixeLogicTest < Test::Unit::TestCase
+
     def test00_Init0
       logic = PixeLogic.new({:width => 5,
                              :height => 10
@@ -850,6 +932,15 @@ if __FILE__ == $0
         assert_true(candidates.include? el)
       end
 
+#      4686825通り...
+#      candidates = PixeLogic.getCandidates(50, [5,1,2,7,1,1,3,2,2])
+#      puts candidates.length
+#      candidates.each do |el|
+#        puts el.to_s
+#      end
+
+
+      # 50, [1,1,1,8,2,2,11],
 
     end
 
@@ -985,34 +1076,16 @@ if __FILE__ == $0
     end
 
 
-#    def testSolve5x5
-#      logic = PixeLogic.new({ :width  => 5,
-#                              :height => 5,
-#                              :hint_h => [[1], [1,1], [3],   [1,1,1], [5]],
-#                              :hint_v => [[2], [2,1], [1,3], [2,1],   [2]]
-#                            })
-#
-#      logic.solve
-#      # TODO 解の比較
-#    end
+    def testSolve5x5
+      logic = PixeLogic.new({ :width  => 5,
+                              :height => 5,
+                              :hint_h => [[1], [1,1], [3],   [1,1,1], [5]],
+                              :hint_v => [[2], [2,1], [1,3], [2,1],   [2]]
+                            })
 
-#    def testSetup2
-#      logic = PixeLogic.new({ :width  => 5,
-#                              :height => 5,
-#                              :hint_h => [[1], [1,1], [3],   [1,1,1], [5]],
-#                              :hint_v => [[2], [2,1], [1,3], [2,1],   [2]]
-#                            })
-#
-#      logic.setup2
-#      ary = logic.scan_priority
-#      assert_equal(logic.width + logic.height, ary.length)
-#      puts ""
-#      ary.each do |el|
-#        k, v = el
-#        puts "#{k.to_s} : #{v}"
-#      end
-#    end
-
+      logic.solve
+      # TODO 解の比較
+    end
 
   end
 
@@ -1043,3 +1116,60 @@ end
 
 
 =end
+
+
+
+  #  def setup
+  #    @candidates_h = []
+  #    @candidates_v = []
+  #
+  #    # ヒントから候補を作成
+  #    if @hint_h
+  #      @hint_h.each do |hint|
+  #        @candidates_h << PixeLogic.getCandidates(@width, hint)
+  #      end
+  #    end
+  #
+  #    if @hint_v
+  #      @hint_v.each do |hint|
+  #        @candidates_v << PixeLogic.getCandidates(@height, hint)
+  #      end
+  #    end
+  #
+  #    # 初期走査対象の初期化
+  #    @scan_stack = []
+  #
+  #    @width.times do |n|
+  #      @scan_stack.push(["v", n])
+  #    end
+  #
+  #    @height.times do |n|
+  #      @scan_stack.push(["h", n])
+  #    end
+  #  end
+
+  #  def solve0
+  #    setup
+  #
+  #    @loop_count = 0
+  #
+  #    public_send_if_defined(:solve_start)
+  #    while 0 < @scan_stack.length
+  #
+  #      public_send_if_defined(:loop_start)
+  #      ary = @scan_stack.pop
+  #      break until ary
+  #
+  #      @current_dir, @current_n = ary
+  #
+  #      updated = scan_line(@current_dir, @current_n)
+  #
+  #      public_send_if_defined(:loop_end)
+  #
+  #      @loop_count += 1
+  #      break if solve_completed?
+  #    end
+  #
+  #    public_send_if_defined(:solve_end)
+  #  end
+

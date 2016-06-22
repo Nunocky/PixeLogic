@@ -10,14 +10,12 @@ end
 
 filename = ARGV[0]
 
-
-
 logic = PixeLogic.load(filename)
 
 def logic.loop_start
   puts "\e[H\e[2J"
   puts "# #{@loop_count}:"
-#  show("　", "■", "？")
+  show("　", "■", "？")
 #  sleep 0.1
 end
 
