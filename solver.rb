@@ -8,7 +8,6 @@ require './PixeLogic.rb'
 #  * 時間を表示
 #  * ループ間のウェイト時間設定
 
-
 if ARGV.length == 0
   puts "usage: ./solver.rb <filename>"
   exit
@@ -17,6 +16,9 @@ end
 filename = ARGV[0]
 
 logic = PixeLogic.load(filename)
+
+logic.logger = Logger.new(STDERR)
+logic.logger.level = Logger::DEBUG # Logger::FATAL
 
 def logic.loop_start
   puts "\e[H\e[2J"

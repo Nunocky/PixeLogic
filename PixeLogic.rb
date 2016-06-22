@@ -1,59 +1,36 @@
 #!/usr/bin/env ruby
 # -*- coding: utf-8 -*-
 
-# TODO デバッグ出力 loggerを使う
-# TODO USR1シグナルで内部状態をダンプ
-# TODO Pointの除外 Arrayで代用可能
-
-
-# プロファイル結果 (20x20)
-
-#  %   cumulative   self              self     total
-# time   seconds   seconds    calls  ms/call  ms/call  name
-# 13.63     7.04      7.04   139753     0.05     1.08  PixeLogic.gc_f1
-# 12.74    13.62      6.58   245973     0.03     0.10  PixeLogic.compare_candidate
-# 10.92    19.26      5.64    74452     0.08     0.32  PixeLogic.getProductOfLine
-#  6.41    32.35      3.31   108772     0.03     0.14  PixeLogic.eliminateCandidates
-#  6.16    35.53      3.18    77397     0.04     0.18  PixeLogic.getSumOfLine
-
 require 'pp'
 require 'test/unit'
 require 'logger'
+
+# TODO スタックに優先度を付ける
+# TODO USR1シグナルで内部状態をダンプ
+# TODO ラインの走査方向  確定したドットの偏りを見て逆順にする
 
 # ================================================================================
 #  探索候補スタック
 #  TODO 追加時にフィールド情報から優先度を算出、ソートした状態を保つ
 # ================================================================================
-class Stack # < Array
-
-  #
-
+class Stack
   def initialize(logic)
     @ary = []
     @field = logic.field
   end
 
-  def push(v)
-    @ary.push v
+  def add(v)
+    unless @ary.include? v
+      @ary.push v
+    end
   end
 
-  def shift
+  def get
     @ary.shift
   end
 
-  def unshift(v)
-    @ary.unshift(v)
-  end
   def length
     @ary.length
-  end
-
-  def include?(v)
-    @ary.include?(v)
-  end
-
-  def uniq!
-    @ary.uniq!
   end
 end
 
@@ -122,7 +99,7 @@ class PixeLogic
   attr_reader   :loop_count
   attr_reader   :scan_priority
 
-  attr_reader   :logger
+  attr_accessor :logger
 
   #
   #
@@ -161,10 +138,8 @@ class PixeLogic
   #
   #
   #
-  def initialize(info = nil, logger = nil)
-
-    @logger = logger || Logger.new(STDERR)
-    @logger.level = Logger::DEBUG # Logger::FATAL
+  def initialize(info = nil)
+    @logger = Logger.new(nil)
 
     @field = {}
     @dot_count = 0
@@ -291,14 +266,14 @@ class PixeLogic
   # @todo エラーチェック
 
   def scan_line(dir, n)
-logger.debug "scan_line(#{dir},#{n})"
+    logger.debug "scan_line(#{dir},#{n})"
 
     dir_next = (dir == "h")? "v" : "h"
     x, y = n, n
 
     line_old   = getFieldLine(dir, n)
     line       = line_old.dup
-logger.debug "#{line_old.to_s}"
+    logger.debug "#{line_old.to_s}"
 
     candidates = getCandidatesOfLine(dir, n, line)
 
@@ -326,11 +301,9 @@ logger.debug "#{line_old.to_s}"
       line.each_with_index do |p, idx|
         next if line_old[idx] != nil
 
-        unless @scan_stack.include?([dir_next, idx])
-          logger.debug "新しい探索対象 #{dir_next},#{idx}"
-#          @scan_stack.push([dir_next, idx])
-          @scan_stack.unshift([dir_next, idx])
-        end
+        logger.debug "新しい探索対象 #{dir_next},#{idx}"
+        @scan_stack.add [dir_next, idx]
+
         if dir == "v"
           y = idx
         else
@@ -338,7 +311,6 @@ logger.debug "#{line_old.to_s}"
         end
 
         setPixel(Point.new(x, y), p)
-
       end
     else
       # 候補が複数残っている
@@ -349,6 +321,10 @@ logger.debug "#{line_old.to_s}"
         # ドットが確定したところに再スキャン要求を出す
         next if line_old[idx] == 1
         next if p != 1
+
+        logger.debug "新しい探索対象 #{dir_next},#{idx}"
+        @scan_stack.add [dir_next, idx]
+
         if dir == "v"
           y = idx
         else
@@ -356,12 +332,6 @@ logger.debug "#{line_old.to_s}"
         end
 
         setPixel(Point.new(x,y), 1)
-
-        unless @scan_stack.include?([dir_next, idx])
-          logger.debug "新しい探索対象 #{dir_next},#{idx}"
-#          @scan_stack.push([dir_next, idx])
-          @scan_stack.unshift([dir_next, idx])
-        end
       end
 
       # 論理和をとり、 0のところは空白で確定する
@@ -369,6 +339,9 @@ logger.debug "#{line_old.to_s}"
       line.each_with_index do |p, idx|
         next if line_old[idx] == 0
         next if p != 0
+
+        logger.debug "新しい探索対象 #{dir_next},#{idx}"
+        @scan_stack.add [dir_next, idx]
 
         if dir == "v"
           y = idx
@@ -378,11 +351,6 @@ logger.debug "#{line_old.to_s}"
 
         setPixel(Point.new(x,y), 0)
 
-        unless @scan_stack.include?([dir_next, idx])
-          logger.debug "新しい探索対象 #{dir_next},#{idx}"
-#          @scan_stack.push([dir_next, idx])
-          @scan_stack.unshift([dir_next, idx])
-        end
       end
     end
   end
@@ -451,7 +419,7 @@ logger.debug "#{line_old.to_s}"
   #
   #
   def solve
-    @scan_stack = Stack.new(self) # unless @scan_stack
+    @scan_stack = Stack.new(self)
     @loop_count = 0
 
     # 有力そうな候補(占有率の高い列)を先に登録
@@ -462,43 +430,19 @@ logger.debug "#{line_old.to_s}"
       # 0.5以下は確定するピクセルが無いので登録しても意味が無い
       if priority >= 0.7
         logger.debug "new scan line #{item.to_s}"
-        @scan_stack.push item
+        @scan_stack.add item
       end
     end
 
     # 前詰め、後詰めで確定するピクセルの探索
     sweepHeadAndTailJustified
 
-#    # TODO v,hそれぞれについて、占有率を計算、 しきい値以上ならscan_stackに追加
-#
-#    priority_threshold = 0.5
-#
-#    @hint_h.each_with_index do |hint, idx|
-#      occupancy = PixeLogic.calcOccupancy(hint, @width)
-#      if occupancy > priority_threshold
-#        item = ["h", idx]
-#        puts "new scan line #{item.to_s} (#{occupancy})"
-#        @scan_stack.push item
-#      end
-#    end
-#
-#    @hint_v.each_with_index do |hint, idx|
-#      occupancy = PixeLogic.calcOccupancy(hint, @height)
-#      if occupancy > priority_threshold
-#        item = ["v", idx]
-#        puts "new scan line #{item.to_s} (#{occupancy})"
-#        @scan_stack.push item
-#      end
-#    end
-
-
-
     public_send_if_defined(:solve_start)
 
     while 0 < @scan_stack.length
       public_send_if_defined(:loop_start)
 
-      @current_dir, @current_n = @scan_stack.shift
+      @current_dir, @current_n = @scan_stack.get
 
       break if @current_dir == nil
 
@@ -507,14 +451,10 @@ logger.debug "#{line_old.to_s}"
       public_send_if_defined(:loop_end)
       break if solve_completed?
       @loop_count += 1
-
-      @scan_stack.uniq!
     end
 
     public_send_if_defined(:solve_end)
   end
-
-#  alias_method :solve, :solve2
 
   def public_send_if_defined(sym)
     public_send(sym) if respond_to?(sym)
@@ -567,43 +507,43 @@ logger.debug "#{line_old.to_s}"
     # 水平方向
     @hint_h.each_with_index do |hint, y|
       line = PixeLogic.sweepLine(@width, hint)
-
       line.each_with_index do |v, x|
         if v == 1
-          setPixel(Point.new(x, y), 1) 
-          @scan_stack.push ["v", x]
+          setPixel(Point.new(x, y), 1)
+          @scan_stack.add ["v", x]
         end
 
       end
     end
 
-
-    # 垂直方向方向
+    # 垂直方向
     @hint_v.each_with_index do |hint, x|
       line = PixeLogic.sweepLine(@height, hint)
-
       line.each_with_index do |v, y|
         if v == 1
           setPixel(Point.new(x, y), 1) if v == 1
-          @scan_stack.push ["h", y]
+          @scan_stack.add ["h", y]
         end
       end
     end
-
   end
 
-  #
+  # ================================================================================
   # クラスメソッド
-  #
+  # ================================================================================
   class << self
 
+    #
+    # @param
+    # @param
+    # @return
     def sweepLine(length, hint)
       numPix = 0
       hint.each do |v|
         numPix += v
       end
 
-      pp hint.to_s
+      # pp hint.to_s
 
       line0 = Array.new(length, 1)
       line1 = Array.new(length, 1)
@@ -680,6 +620,10 @@ logger.debug "#{line_old.to_s}"
     end
 
     # getCandidatesの補助関数
+    #
+    # @param
+    # @param
+    # @return
     def gc_f1(width, n, spc, pix, line, base = nil, &block)
       raise ArgumentError, "Bad Argument" if spc == nil
       raise ArgumentError, "Bad Argument" if pix == nil
@@ -979,8 +923,6 @@ if __FILE__ == $0
 #      candidates.each do |el|
 #        puts el.to_s
 #      end
-
-
       # 50, [1,1,1,8,2,2,11],
 
     end
@@ -1092,8 +1034,6 @@ if __FILE__ == $0
     end
 
     def test07_Occupancy2
-#      logic = PixeLogic.load("ex5x5.rb")
-
       logic = PixeLogic.new({ :width  => 5,
                               :height => 5,
                               :hint_h => [[1], [1,1], [3],   [1,1,1], [5]],
@@ -1113,9 +1053,7 @@ if __FILE__ == $0
         r = PixeLogic.calcOccupancy(hint, logic.height)
         puts "V#{n} : #{r}"
       end
-
     end
-
 
     def testSolve5x5
       logic = PixeLogic.new({ :width  => 5,
@@ -1127,90 +1065,6 @@ if __FILE__ == $0
       logic.solve
       # TODO 解の比較
     end
-
   end
 
-
-
 end
-
-=begin
-
-5x5のサンプル
-
-      2 2 1 2 2
-        1 3 1
-1     □□■□□
-1 1   □■□■□
-3     □■■■□
-1 1 1 ■□■□■
-5     ■■■■■
-
-
-## TODO
-
- * 解候補計算に確定情報を渡し、不必要な探索をやめる
- * 開始前チェック、h,vの各ヒントのピクセル数が一致しなければ処理を中断する
-
- * 論理的に置けない場所に xを付ける
-
-
-
-=end
-
-
-
-  #  def setup
-  #    @candidates_h = []
-  #    @candidates_v = []
-  #
-  #    # ヒントから候補を作成
-  #    if @hint_h
-  #      @hint_h.each do |hint|
-  #        @candidates_h << PixeLogic.getCandidates(@width, hint)
-  #      end
-  #    end
-  #
-  #    if @hint_v
-  #      @hint_v.each do |hint|
-  #        @candidates_v << PixeLogic.getCandidates(@height, hint)
-  #      end
-  #    end
-  #
-  #    # 初期走査対象の初期化
-  #    @scan_stack = []
-  #
-  #    @width.times do |n|
-  #      @scan_stack.push(["v", n])
-  #    end
-  #
-  #    @height.times do |n|
-  #      @scan_stack.push(["h", n])
-  #    end
-  #  end
-
-  #  def solve0
-  #    setup
-  #
-  #    @loop_count = 0
-  #
-  #    public_send_if_defined(:solve_start)
-  #    while 0 < @scan_stack.length
-  #
-  #      public_send_if_defined(:loop_start)
-  #      ary = @scan_stack.pop
-  #      break until ary
-  #
-  #      @current_dir, @current_n = ary
-  #
-  #      updated = scan_line(@current_dir, @current_n)
-  #
-  #      public_send_if_defined(:loop_end)
-  #
-  #      @loop_count += 1
-  #      break if solve_completed?
-  #    end
-  #
-  #    public_send_if_defined(:solve_end)
-  #  end
-
