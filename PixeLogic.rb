@@ -16,17 +16,34 @@ require 'logger'
 class Stack
   def initialize(logic)
     @ary = []
-    @field = logic.field
+    @logic = logic
+#    @field = logic.field
   end
 
   def add(v)
-    unless @ary.include? v
-      @ary.push v
+#    return if @ary.include? v
+    match = true
+    @ary.each do |el|
+      tgt, progress = el
+      if v == tgt
+        match = false
+        break
+      end
     end
+    return unless match
+
+    dir, n = v
+    progress = @logic.getProgressOfLine(dir, n)
+
+    el = [v, progress]
+
+    @ary.push el
+    @ary.sort { |a, b| a[1] <=> b[1] }
   end
 
   def get
-    @ary.shift
+    v, progress = @ary.shift
+    v
   end
 
   def length
@@ -215,6 +232,24 @@ class PixeLogic
     end
   end
 
+  # 行・列の完成率を取得する
+  # @param [String] dir "v" または "h"
+  # @param [Integer] n 行、または列の番号
+  # @return
+  # @todo 高速化のためキャッシュする
+  def getProgressOfLine(dir, n)
+    line = getFieldLine(dir, n)
+    hint = (dir=='v')? @hint_v[n] : @hint_h[n]
+
+    pix_total = hint.inject(:+) # ドットの合計
+
+    sum = 0
+    line.each do |v|
+      sum += 1 if v == 1
+    end
+    return sum / pix_total.to_f
+  end
+
   # fieldの配列を得る
   # @param [String] dir "v" または "h"
   # @param [Integer] n 行、または列の番号
@@ -278,7 +313,7 @@ class PixeLogic
     candidates = getCandidatesOfLine(dir, n, line)
 
     if 1 < candidates.length
-      logger.debug "複数の配置候補"
+      logger.debug "複数の配置候補 (#{candidates.length})"
       new_candidates = PixeLogic.eliminateCandidates(line, candidates)
 
       if candidates.length != new_candidates.length
